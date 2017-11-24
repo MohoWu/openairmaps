@@ -15,9 +15,8 @@
 #'   plots that are generated. Note, if the directory does not exist
 #'   it is generated. If the directory does exist all plots will be
 #'   deleted when the function is run.
-#' @param provider The base map to be used. See
-#'   \url{http://leaflet-extras.github.io/leaflet-providers/preview/}
-#'   for a lits of all base maps that can be used.
+#' @param provider The default base map to be used. Available options: "OpenStreetMap", "Toner", "Toner lite",
+#'   "Landscape", "Transport dark", "Outdoors", "Images".
 #' @param type The grouping variable that provides a data set for a
 #'   specific location. Often, with several sites, \code{type =
 #'   "site"} is used.
@@ -30,6 +29,7 @@
 #' @param iconHeight The actual height of the plot on the map in pixels.
 #' @param fig.width The width of the plots to be produced in inches.
 #' @param fig.height The height of the plots to be produced in inches.
+#' @param ... other arguements pass to \code{\link[openair]{polarPlot}}
 #'
 #' @return A leaflet object.
 #' @import leaflet
@@ -45,7 +45,7 @@ polarMap <- function(data, pollutant = "nox", x = "ws",
                      latitude = "lat",
                      longitude = "lon",
                      dir_polar = "~/dir_polar",
-                     provider = "OpenStreetMap",
+                     provider = "Toner lite",
                      type = "default",
                      cols = "jet",
                      alpha = 1,
@@ -116,8 +116,32 @@ polarMap <- function(data, pollutant = "nox", x = "ws",
 
   # plot leaflet
   m <- leaflet(data = plot_data) %>%
-    addTiles() %>%
-    addProviderTiles(provider = provider) %>%
+    addTiles(
+      group = "OpenStreetMap",
+      urlTemplate = "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png") %>%
+    addProviderTiles("Stamen.Toner", group = "Toner") %>%
+    addProviderTiles("Stamen.TonerLite", group = "Toner lite") %>%
+    addTiles(
+      urlTemplate = "https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}",
+      attribution = "&copy; <a href='http://www.thunderforest.com/'>Thunderforest</a>,  &copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
+      options = tileOptions(variant = "landscape", apikey = "25ef91f0102248f4a181998ec2b7a1ad"),
+      group = "Landscape") %>%
+    addTiles(
+      urlTemplate = "https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}",
+      attribution = "&copy; <a href='http://www.thunderforest.com/'>Thunderforest</a>,  &copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
+      options = tileOptions(variant = "transport-dark", apikey = "25ef91f0102248f4a181998ec2b7a1ad"),
+      group = "Transport dark") %>%
+    addTiles(
+      urlTemplate = "https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}",
+      attribution = "&copy; <a href='http://www.thunderforest.com/'>Thunderforest</a>,  &copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
+      options = tileOptions(variant = "outdoors", apikey = "25ef91f0102248f4a181998ec2b7a1ad"),
+      group = "Outdoors") %>%
+    addProviderTiles("Esri.WorldImagery", group = "Images") %>%
+    addLayersControl(
+      baseGroups = c(provider,
+                     setdiff(c("OpenStreetMap", "Toner", "Toner lite", "Landscape",
+                               "Transport dark", "Outdoors", "Images"),
+                             provider))) %>%
     addMarkers(data = plot_data,
                plot_data[[longitude]], plot_data[[latitude]],
                icon = leafIcons, popup = plot_data[[type]])
