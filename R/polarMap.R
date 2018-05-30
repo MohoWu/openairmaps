@@ -24,12 +24,13 @@
 #' @param alpha The alpha transparency to use for the plotting surface
 #'   (a value between 0 and 1 with zero being fully transparent and 1
 #'   fully opaque).
-#' @param key Should the key of the polar plot be drawn. Default is \code{FALSE}.
 #' @param iconWidth The actual width of the plot on the map in pixels.
 #' @param iconHeight The actual height of the plot on the map in pixels.
 #' @param fig.width The width of the plots to be produced in inches.
 #' @param fig.height The height of the plots to be produced in inches.
 #' @param ... other arguements pass to \code{\link[openair]{polarPlot}}
+#' @param leaflet.width The width of leaflet plot.
+#' @param leaflet.height The height of leaflet plot.
 #'
 #' @return A leaflet object.
 #' @import leaflet
@@ -37,10 +38,9 @@
 #' @export
 #'
 #' @examples
-#'
-#'
 #' polarMap(polar_data, latitude = "latitude", longitude = "longitude",
 #' x = "ws", type = "site", provider = "CartoDB.DarkMatter")
+#'
 polarMap <- function(data, pollutant = "nox", x = "ws",
                      latitude = "lat",
                      longitude = "lon",
@@ -49,11 +49,9 @@ polarMap <- function(data, pollutant = "nox", x = "ws",
                      type = "default",
                      cols = "jet",
                      alpha = 1,
-                     key = FALSE,
+                     leaflet.width = 800, leaflet.height = 400,
                      iconWidth = 200, iconHeight = 200,
-                     fig.width = 4, fig.height = 4, ...) {
-
-  . <- NULL
+                     fig.width = 3, fig.height = 3, ...) {
 
   ## extract variables of interest
   vars <- c("wd", x, pollutant, latitude, longitude, type)
@@ -78,76 +76,132 @@ polarMap <- function(data, pollutant = "nox", x = "ws",
 
   }
 
+  # calculate the limit used in polar plot, i.e. 10 and 90 percentile of the entire data
+  polar_limit <- quantile(data[[pollutant]], c(0.1, 0.9), na.rm = TRUE)
+
   # function to produce a polar plot, with transparent background
-  plot_polar <- function(data, pollutant, type, x, alpha, key, ...) {
+  plot_polar <- function(data, same.scale = FALSE, ...) {
 
-    png(paste0(dir_polar, "/", data[[type]], ".png"),
-        width = fig.width * 300,
-        height = fig.height * 300, res = 300, bg = "transparent")
+    if (same.scale) {
 
-    plt <- polarPlot(data, pollutant = pollutant, x = x,
-                     key = key,
-                     par.settings = list(axis.line = list(col = "transparent")),
-                     alpha = alpha,
-                     ...)
+      png(paste0(dir_polar, "/", data[[type]], ".sc.png"),
+          width = fig.width * 300,
+          height = fig.height * 300, res = 300, bg = "transparent")
+
+      plt <- polarPlot(data, pollutant, x,
+                       key = FALSE,
+                       par.settings = list(axis.line = list(col = "transparent")),
+                       alpha = alpha,
+                       limits = polar_limit,
+                       ...)
+
+    } else {
+
+      png(paste0(dir_polar, "/", data[[type]], ".png"),
+          width = fig.width * 300,
+          height = fig.height * 300, res = 300, bg = "transparent")
+
+      plt <- polarPlot(data, pollutant, x,
+                       key = TRUE,
+                       par.settings = list(axis.line = list(col = "transparent")),
+                       alpha = alpha,
+                       key.position = "bottom",
+                       ...)
+
+    }
 
     dev.off()
 
-    return(plt$data)
+    return(NULL)
 
   }
 
+  # go through all sites and make plot
+  # plot with same scale
+  split(data, data[[type]]) %>%
+    purrr::walk(plot_polar, same.scale = TRUE, ...)
 
-
-  # go through all sites and make some plots
-  group_by_(data, .dots = type) %>%
-    do(plot_polar(., pollutant, type, x = x, key = key, alpha = alpha, cols = cols, ...))
+  # plot with individual scale
+  split(data, data[[type]]) %>%
+    purrr::walk(plot_polar, same.scale = FALSE, ...)
 
   # summarise data - one line per location
   plot_data <- group_by_(data, .dots = type) %>%
     slice(n = 1)
 
   # definition of 'icons' aka the openair plots
-  leafIcons = lapply(list.files(dir_polar, full.names = TRUE),
-                     makeIcon, iconWidth = iconWidth, iconHeight = iconHeight)
-  names(leafIcons) = unique(data[[type]])
-  class(leafIcons) <- "leaflet_icon_set"
+  sc_plots <- list.files(dir_polar, pattern = "\\.sc\\.", full.names = TRUE)
+  reg_plots <- setdiff(list.files(dir_polar, full.names = TRUE), sc_plots)
 
+  sc_icons <- make_leaf_icon(sc_plots, icon.name = unique(data[[type]]),
+                             iconWidth, iconHeight)
+  reg_icons <- make_leaf_icon(reg_plots, icon.name = unique(data[[type]]),
+                             iconWidth, iconHeight)
 
-  # plot leaflet
-  m <- leaflet(data = plot_data) %>%
-    addTiles(
-      group = "OpenStreetMap",
-      urlTemplate = "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png") %>%
+  # plot leaflet basemap
+  basegroups <- c("OpenStreetMap", "Toner", "Toner lite", "Landscape",
+                  "Transport dark", "Outdoors", "Images")
+
+  m <- leaflet(data = plot_data, width = leaflet.width, height = leaflet.height) %>%
+    addTiles(group = "OpenStreetMap",
+             urlTemplate = "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png") %>%
     addProviderTiles("Stamen.Toner", group = "Toner") %>%
     addProviderTiles("Stamen.TonerLite", group = "Toner lite") %>%
     addTiles(
       urlTemplate = "https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}",
       attribution = "&copy; <a href='http://www.thunderforest.com/'>Thunderforest</a>,  &copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
       options = tileOptions(variant = "landscape", apikey = "25ef91f0102248f4a181998ec2b7a1ad"),
-      group = "Landscape") %>%
+      group = "Landscape"
+    ) %>%
     addTiles(
       urlTemplate = "https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}",
       attribution = "&copy; <a href='http://www.thunderforest.com/'>Thunderforest</a>,  &copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
       options = tileOptions(variant = "transport-dark", apikey = "25ef91f0102248f4a181998ec2b7a1ad"),
-      group = "Transport dark") %>%
+      group = "Transport dark"
+    ) %>%
     addTiles(
       urlTemplate = "https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}",
       attribution = "&copy; <a href='http://www.thunderforest.com/'>Thunderforest</a>,  &copy; <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
       options = tileOptions(variant = "outdoors", apikey = "25ef91f0102248f4a181998ec2b7a1ad"),
-      group = "Outdoors") %>%
-    addProviderTiles("Esri.WorldImagery", group = "Images") %>%
+      group = "Outdoors"
+    ) %>%
+    addProviderTiles("Esri.WorldImagery", group = "Images")
+
+  # add polarplots
+  pal <- colorNumeric(palette = openair::openColours("jet", 10),
+                      domain = data[[pollutant]], na.color = NA)
+
+  m <- m %>%
+    addMarkers(plot_data[[longitude]], plot_data[[latitude]],
+               icon = sc_icons, popup = plot_data[[type]], group = "Same scale") %>%
+    addLegend(position = "bottomleft", pal = pal, values = data[[pollutant]], group = "Same scale") %>%
+    addMarkers(plot_data[[longitude]], plot_data[[latitude]],
+               icon = reg_icons, popup = plot_data[[type]], group = "Individual scale") %>%
+    hideGroup("Individual scale")
+
+
+  # add layer contrl
+  m <- m %>%
     addLayersControl(
       baseGroups = c(provider,
-                     setdiff(c("OpenStreetMap", "Toner", "Toner lite", "Landscape",
-                               "Transport dark", "Outdoors", "Images"),
-                             provider))) %>%
-    addMarkers(data = plot_data,
-               plot_data[[longitude]], plot_data[[latitude]],
-               icon = leafIcons, popup = plot_data[[type]])
+                     setdiff(basegroups, provider)),
+      overlayGroups = c("Same scale", "Individual scale"))
 
   # return
   m
+
+}
+
+# function to make leaf icons
+make_leaf_icon <- function(file, icon.width, icon.height, icon.name) {
+
+  leaf_icons = lapply(file,
+                      makeIcon,
+                      iconWidth = icon.width, iconHeight = icon.height)
+  names(leaf_icons) = icon.name
+  class(leaf_icons) <- "leaflet_icon_set"
+
+  return(leaf_icons)
 
 }
 

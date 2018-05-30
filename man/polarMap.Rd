@@ -6,8 +6,9 @@
 \usage{
 polarMap(data, pollutant = "nox", x = "ws", latitude = "lat",
   longitude = "lon", dir_polar = "~/dir_polar", provider = "Toner lite",
-  type = "default", cols = "jet", alpha = 1, key = FALSE,
-  iconWidth = 200, iconHeight = 200, fig.width = 4, fig.height = 4, ...)
+  type = "default", cols = "jet", alpha = 1, leaflet.width = 800,
+  leaflet.height = 400, iconWidth = 200, iconHeight = 200,
+  fig.width = 3, fig.height = 3, ...)
 }
 \arguments{
 \item{data}{A data frame. The data frame must contain the data to
@@ -42,7 +43,9 @@ specific location. Often, with several sites, \code{type =
 (a value between 0 and 1 with zero being fully transparent and 1
 fully opaque).}
 
-\item{key}{Should the key of the polar plot be drawn. Default is \code{FALSE}.}
+\item{leaflet.width}{The width of leaflet plot.}
+
+\item{leaflet.height}{The height of leaflet plot.}
 
 \item{iconWidth}{The actual width of the plot on the map in pixels.}
 
@@ -61,8 +64,7 @@ A leaflet object.
 Bivariate polar plots on interactive leaflet maps
 }
 \examples{
-
-
 polarMap(polar_data, latitude = "latitude", longitude = "longitude",
 x = "ws", type = "site", provider = "CartoDB.DarkMatter")
+
 }
