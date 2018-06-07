@@ -168,13 +168,15 @@ polarMap <- function(data, pollutant = "nox", x = "ws",
     addProviderTiles("Esri.WorldImagery", group = "Images")
 
   # add polarplots
+  plot_values <- data[[pollutant]][dplyr::between(data[[pollutant]], polar_limit[1], polar_limit[2])]
   pal <- colorNumeric(palette = openair::openColours("jet", 10),
-                      domain = data[[pollutant]], na.color = NA)
+                      domain = plot_values,
+                      na.color = NA)
 
   m <- m %>%
     addMarkers(plot_data[[longitude]], plot_data[[latitude]],
                icon = sc_icons, popup = plot_data[[type]], group = "Same scale") %>%
-    addLegend(position = "bottomleft", pal = pal, values = data[[pollutant]], group = "Same scale") %>%
+    addLegend(position = "bottomleft", pal = pal, values = plot_values, group = "Same scale") %>%
     addMarkers(plot_data[[longitude]], plot_data[[latitude]],
                icon = reg_icons, popup = plot_data[[type]], group = "Individual scale") %>%
     hideGroup("Individual scale")
